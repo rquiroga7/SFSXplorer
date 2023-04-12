@@ -48,6 +48,7 @@
 # Import section
 import numpy as np
 
+
 # Define PairwiseElecPot() class
 class PairwiseElecPot(object):
     """Class to calculate pairwise electric potential energy based on the 
@@ -80,7 +81,9 @@ class PairwiseElecPot(object):
         # Mehler, E.L. and Solmajer, T. (1991) “Electrostatic effects in 
         # proteins: comparison of
         # dielectric and charge models” Protein Engineering, 4, 903-910.
-        e0_r = A + B/(1+k*np.exp(-l*B*r))
+        e0_r = np.zeros_like(r)
+        mask = r <= 20
+        e0_r[mask] = A + B/(1+k*np.exp(-l*B*r[mask]))
 
         # Return result
         return e0_r
@@ -107,7 +110,9 @@ class PairwiseElecPot(object):
         # e0_r = A + B*(1/2+(k/2)*np.tanh(l*B*r/2))
         # e0_r = A + B*(1/2+(1/2)*np.tanh(l*B*r/2)) OK!
         # e0_r = A + B*(1/2+(1/2)*np.tanh(l*B*r/2))
-        e0_r = A + B*(np.exp(l*B*r)-k*np.exp(-l*B*r))/(np.exp(l*B*r)+k*np.exp(-l*B*r))
+        e0_r = np.zeros_like(r)
+        mask = r <= 20
+        e0_r[mask] = A + B*(np.exp(l*B*r[mask])-k*np.exp(-l*B*r[mask]))/(np.exp(l*B*r[mask])+k*np.exp(-l*B*r[mask]))
 
         # Return result
         return e0_r
@@ -149,6 +154,101 @@ class PairwiseElecPot(object):
                 
                 # Calculate potential for all atoms
                 v_r += v
+
+                # # Invoking dist() method with distance cutoff of 8A
+                # if abs(x_i-x_j) > 8:
+                #     v=0
+                # if abs(y_i-y_j) > 8:
+                #     v=0
+                # if abs(z_i-z_j) > 8:
+                #     v=0
+                # else:
+                #     r = self.dist(x_i,y_i,z_i,x_j,y_j,z_j)
+                #     if r<8:
+                #         ep = log_w*self.epsilon0(r,l,k,a,e0) + tanh_w*self.epsilon0_tanh(r,l,k,a,e0)
+                #         v = q_i*q_j/(r*ep) 
+                # v_r += v
                 
         # Return result
         return v_r
+
+
+def epsilon0(r,l,k,A,e0):
+        """Method to calcule sigmoidal distance-dependent dielectric function"""
+
+        # Set up constants
+        # taken from http://autodock.scripps.edu/faqs-help/manual/autodock-3-user-s-guide/AutoDock3.0.5_UserGuide.pdf
+        # A = -8.5525
+        # l = 0.003627
+        # k = 7.7839
+        # e0 = 78.4       # Dielectric constant of bulk water at 25˚C
+        B = e0 - A
+
+        # A sigmoidal distance-dependent dielectric function is used to model 
+        # solvent screening,based on the work of Mehler and Solmajer.
+        # Mehler, E.L. and Solmajer, T. (1991) “Electrostatic effects in 
+        # proteins: comparison of
+        # dielectric and charge models” Protein Engineering, 4, 903-910.
+        e0_r = np.zeros_like(r)
+        mask = r <= 20
+        e0_r[mask] = A + B/(1+k*np.exp(-l*B*r[mask]))
+
+        # Return result
+        return e0_r
+
+
+    # Define epsilon0_tanh() method
+def epsilon0_tanh(r,l,k,A,e0):
+    """Method to calcule distance-dependent dielectric function using 
+    tanh"""
+
+    # Set up constants
+    # taken from http://autodock.scripps.edu/faqs-help/manual/autodock-3-user-s-guide/AutoDock3.0.5_UserGuide.pdf
+    # A = -8.5525
+    # l = 0.003627
+    # k = 7.7839
+    # e0 = 78.4       # Dielectric constant of bulk water at 25˚C
+    B = e0 - A
+
+    # A sigmoidal distance-dependent dielectric function is used to model 
+    # solvent screening,based on the work of Mehler and Solmajer.
+    # Mehler, E.L. and Solmajer, T. (1991) “Electrostatic effects in 
+    # proteins: comparison of
+    # dielectric and charge models” Protein Engineering, 4, 903-910.
+    # e0_r = A + B/(1+k*np.exp(-l*B*r))
+    # e0_r = A + B*(1/2+(k/2)*np.tanh(l*B*r/2))
+    # e0_r = A + B*(1/2+(1/2)*np.tanh(l*B*r/2)) OK!
+    # e0_r = A + B*(1/2+(1/2)*np.tanh(l*B*r/2))
+    e0_r = np.zeros_like(r)
+    mask = r <= 20
+    e0_r[mask] = A + B*(np.exp(l*B*r[mask])-k*np.exp(-l*B*r[mask]))/(np.exp(l*B*r[mask])+k*np.exp(-l*B*r[mask]))
+
+
+    # Return result
+    return e0_r
+
+
+# Define potential() method
+def elec_potentialv(r,q_i2d,q_j2d,l,k,a,e0,log_w,tanh_w):
+    """Method to calculate pairwise electric potential energy based on the
+     AutoDock equation"""
+    # Assign zero to v_r
+    v = 0
+    #Calculate matrix of epsilon0values
+    if log_w>0:
+        ep0=log_w*epsilon0(r,l,k,a,e0)
+    else:
+        ep0=np.zeros_like(r)
+    if tanh_w>0:
+        ep0tan=tanh_w*epsilon0_tanh(r,l,k,a,e0)
+    else:
+        ep0tan=np.zeros_like(r)
+    ep=ep0+ep0tan
+        #ep = log_w*self.epsilon0(r,l,k,a,e0) + tanh_w*self.epsilon0_tanh(r,l,k,a,e0)
+    v = np.zeros_like(r)
+    mask = r <= 20
+    v[mask] = 332*q_i2d[mask]*q_j2d[mask]/(r[mask]*ep[mask])
+    #print(v)
+    # Return result
+    return np.sum(v) * 0.1406
+

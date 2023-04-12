@@ -228,6 +228,7 @@ class Stats(object):
         # Assign column to array
         i = 0
         for r in range(self.n_rows):
+            #print(r,self.n_rows)
             data_array[i] = self.pie2go[r,col_in]
             i += 1
         
@@ -312,6 +313,7 @@ class Stats(object):
         
         # Looping through self.columns()
         for i in range(len(self.columns)):
+            #print(i,len(self.columns))
             #print(self.columns[i],self.terms[i])
         
             # Invoke get_array() method

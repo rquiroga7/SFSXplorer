@@ -55,66 +55,6 @@
 # Import section
 import numpy as np
 
-
-#VECTORIZED VERSION FOR MATRIXES OF VDW_PARAMS and R
-"""Method to calculate pairwise potential energy based on 
-matrixes of r, reqm_i, epsilon_i, reqm_j and epsilon_j values"""
-
-def vdw_potentialv(reqm_i, epsilon_i, reqm_j, epsilon_j, r, n, m):
-    reqm = 0.5 * (reqm_i + reqm_j)
-    epsilon = np.sqrt(epsilon_i * epsilon_j)
-    cm = np.zeros_like(r)
-    cn = np.zeros_like(r)
-    v = np.zeros_like(r)
-    mask = r <= 12
-    cm[mask] = (n / (n - m)) * epsilon[mask] * (reqm[mask] ** m)
-    cn[mask] = (m / (n - m)) * epsilon[mask] * (reqm[mask] ** n)
-    v[mask] = cn[mask] / (r[mask] ** n) - cm[mask] / (r[mask] ** m)
-    return np.sum(v)*0.1662
-
-def vdw_potentialvv(reqm_i, epsilon_i, reqm_j, epsilon_j, r, n, m,ehb_i,ehb_j):
-    hbchk = np.zeros_like(ehb_i)
-    reqm = np.zeros_like(r)
-    epsilon = np.zeros_like(r)
-    mask = (r <= 12)
-    hbchk[mask] = ehb_i[mask] * ehb_j[mask]
-    reqm[mask] = 0.5 * (reqm_i[mask] + reqm_j[mask])
-    epsilon[mask] = np.sqrt(epsilon_i[mask] * epsilon_j[mask])
-    cm = np.zeros_like(r)
-    cn = np.zeros_like(r)
-    v = np.zeros_like(r)
-    mask2 = (hbchk >= 0) & (r <= 12)
-    cm[mask2] = (n / (n - m)) * epsilon[mask2] * (reqm[mask2] ** m)
-    cn[mask2] = (m / (n - m)) * epsilon[mask2] * (reqm[mask2] ** n)
-    v[mask2] = cn[mask2] / (r[mask2] ** n) - cm[mask2] / (r[mask2] ** m)
-    return np.sum(v) *0.1662
-
-def vdw_potentialvvs(reqm_i, epsilon_i, reqm_j, epsilon_j, r, n, m,ehb_i,ehb_j,smooth,cap):
-    hbchk = np.zeros_like(ehb_i)
-    reqm = np.zeros_like(r)
-    epsilon = np.zeros_like(r)
-    mask = (r <= 12)
-    hbchk[mask] = ehb_i[mask] * ehb_j[mask]
-    reqm[mask] = 0.5 * (reqm_i[mask] + reqm_j[mask])
-    epsilon[mask] = np.sqrt(epsilon_i[mask] * epsilon_j[mask])
-    cm = np.zeros_like(r)
-    cn = np.zeros_like(r)
-    v = np.zeros_like(r)
-    mask2 = (hbchk >= 0) & (r <= 12)
-    cm[mask2] = (n / (n - m)) * epsilon[mask2] * (reqm[mask2] ** m)
-    cn[mask2] = (m / (n - m)) * epsilon[mask2] * (reqm[mask2] ** n)
-    #v[mask2] = cn[mask2] / (r[mask2] ** n) - cm[mask2] / (r[mask2] ** m)
-    #Smooth both on attractive and repulsive sides
-    #smooth_r = np.where(r > reqm + 0.5, r - 0.5, np.where(r < reqm - 0.5, r + 0.5, r))
-    #Smooth only on repulsive side, flat bottom
-    smooth_r = np.where(r < (reqm - smooth), r + smooth, np.where(r < reqm, reqm, r))
-    #Smooth also attractive side
-    smooth_r2 = np.where(r > (reqm + smooth), r - smooth, np.where(r > reqm, reqm, smooth_r))
-    # Calculate v using the updated smoothed r values
-    v[mask2] = cn[mask2] / (smooth_r2[mask2] ** n) - cm[mask2] / (smooth_r2[mask2] ** m)
-    v = np.clip(v, a_min=None, a_max=cap)
-    return np.sum(v)*0.1662
-
 # Define PairwisePot() class
 class PairwisePot(object):
     """Class to calculate pairwise potential energy for van der Waals 
@@ -123,17 +63,41 @@ class PairwisePot(object):
         
     # Define potential() method (it is better to follow n=12,m=6) 
     def potential(self,reqm_i,epsilon_i,reqm_j,epsilon_j,r,n,m):
-       
-        reqm = 0.5 * (reqm_i + reqm_j)
-        epsilon = (epsilon_i * epsilon_j) ** 0.5
+        """Method to calculate pairwise potential energy based on the
+            assisted Model Building with Energy Refinement (AMBER) force 
+            field (Cornell et al., 1995).
+            
+            Inputs
+            reqm_i      : Sum of vdW radii of two like atoms (in Angstrom)
+            epsilon_i   : Well depth (in Kcal/mol)
+            reqm_j      : Sum of vdW radii of two like atoms (in Angstrom)
+            epsilon_j   : Well depth (in Kcal/mol)
+            r           : Intermolecular distance
+            m           : Attraction expoent (6)
+            n           : Repulsion expoent (12)
+            
+            Outputs
+            cn, cm      : cn and cm are constants whose values depend on the 
+                          depth of the energy well and the equilibrium 
+                          separation of the two atoms’ nuclei.
+            v           : van der Waals potential energy
+            """
+                
+        # To obtain the Rij value for non H-bonding atoms
+        reqm = 0.5*(reqm_i+reqm_j)
+        
+        #  To obtain the epsilon value for non H-bonding atoms
+        epsilon = np.sqrt(epsilon_i*epsilon_j)
+        
+        # Calculate cm and cn parameters if n != m
         if n != m:
-            cm = (n / (n - m)) * epsilon * (reqm ** m)
-            cn = (m / (n - m)) * epsilon * (reqm ** n)
-            v = cn / (r ** n) - cm / (r ** m)
+            cm = (n/(n-m))*epsilon*reqm**m 
+            cn = (m/(n-m))*epsilon*reqm**n
         else:
-            cm = None
-            cn = None
-            v = None
-        return cn, cm, v
-    
-
+            return None,None,None
+                
+        # Calculate v(r)        
+        v = cn/r**n - cm/r**m
+        
+        # Return results
+        return cn,cm,v

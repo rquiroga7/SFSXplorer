@@ -61,6 +61,176 @@
 import sys
 import numpy as np
 from SFSXplorer import FF_AD4 as ad4
+from SFSXplorer import vdw as vd
+from SFSXplorer import hb as hb
+from SFSXplorer import elec as e1
+from SFSXplorer import desolv as ds1
+from multiprocessing import Pool, cpu_count
+
+
+def process_csv_chunk(hbtype,vdwtype,desoltype,dataset_dir,pot_VDW_n_min,pot_VDW_n_max, pot_VDW_m_min, pot_VDW_m_max,pot_HB_n_min, pot_HB_n_max, pot_HB_m_min, pot_HB_m_max, a_array, e0_array, k_array, l_array, log_array, m_array_desol, n_array_desol, s_array_desol, cc_array_desol, smooth_vdw_array, smooth_hb_array, cap_vdw_array,cap_hb_array, chunk):
+    #print("entering 'process_csv_chunk' function")
+    lines_out = []
+    for line in chunk:
+        if line[0].strip() != "PDB" and "#" not in line[0].strip():    
+            pot = ad4.InterMol("/home/rquiroga/Downloads/sfs/misc/data/AD4.1_bound.dat")
+            pot2 = ad4.InterMol("/home/rquiroga/Downloads/sfs/misc/data/AD4.2_bound.dat")
+            #for line in chunk:
+            # Same code as before, but without the `self.` prefixes.
+            # Assign directory for a specific PDB to name_dir
+            #print('line', line)
+            #print('line0', line[0])
+            name_dir = dataset_dir+str(line[0]).strip() + "/"
+            # Invoking read_AD4_bound() method
+            par_list = pot.read_AD4_bound()
+            par_list2 = pot2.read_AD4_bound()
+            # Invoking read_PDBQT() method
+            lig_list = pot.read_PDBQT(name_dir+"lig.pdbqt")
+            # Invoking read_PDBQT() method
+            receptor_list = pot.read_PDBQT(name_dir+"receptor.pdbqt")
+            #Retrieve atom type, coordinates and charge and put them in numpy arrays
+            lig_coords,lig_type,lig_charge,rec_coords,rec_type,rec_charge = pot.get_atom_par_array(par_list,lig_list,receptor_list)
+            #Calculate distance by pairs in a vectorized manner using broadcasting
+            #dist_pairs = np.sqrt(np.sum((lig_coords[:, np.newaxis, :] - rec_coords[np.newaxis, :, :3])**2, axis=2))                    
+            dist_pairs =pot.vectorized_dist(lig_coords,rec_coords)
+            ################################################################
+            # Calculate hydrogen-bond potentials
+            if hbtype == 'walter':
+                string_HB=""
+                rhb_i,rhb_j,ehb_i,ehb_j = pot.get_atom_par_array_HB(par_list,lig_type,rec_type)
+                n_exp_range = np.arange(pot_HB_n_min, pot_HB_n_max+1)
+                m_exp_range = np.arange(pot_HB_m_min, pot_HB_m_max+1)
+                for n_exp in n_exp_range:
+                    for m_exp in m_exp_range:
+                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                            v_HB_n_m = hb.hb_potentialv(rhb_i,ehb_i,rhb_j,ehb_j,dist_pairs,n_exp,m_exp)
+                            string_HB+= str(",")+str(v_HB_n_m)
+            # Calculate hydrogen-bond potentials vina1.2 style
+            if hbtype == 'vina':
+                string_HB=""
+                rhb_i,rhb_j,ehb_i,ehb_j = pot.get_atom_par_array_HB(par_list2,lig_type,rec_type)
+                n_exp_range = np.arange(pot_HB_n_min, pot_HB_n_max+1)
+                m_exp_range = np.arange(pot_HB_m_min, pot_HB_m_max+1)
+                for n_exp in n_exp_range:
+                    for m_exp in m_exp_range:
+                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                            v_HB_n_m = hb.hb_potentialvv(rhb_i,ehb_i,rhb_j,ehb_j,dist_pairs,n_exp,m_exp)
+                            string_HB+= str(",")+str(v_HB_n_m)   
+              # Calculate hydrogen-bond potentials vina1.2 style
+            if hbtype == 'smooth':
+                string_HB=""
+                rhb_i,rhb_j,ehb_i,ehb_j = pot.get_atom_par_array_HB(par_list2,lig_type,rec_type)
+                n_exp_range = np.arange(pot_HB_n_min, pot_HB_n_max+1)
+                m_exp_range = np.arange(pot_HB_m_min, pot_HB_m_max+1)
+                for n_exp in n_exp_range:
+                    for m_exp in m_exp_range:
+                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                            for smooth in smooth_hb_array:
+                                for cap in cap_hb_array:
+                                    v_HB_n_m = hb.hb_potentialvvs(rhb_i,ehb_i,rhb_j,ehb_j,dist_pairs,n_exp,m_exp,smooth,cap)
+                                    string_HB+= str(",")+str(v_HB_n_m)                        
+            ###############################################################
+            # Calculate van der Waals potentials
+            if vdwtype == 'walter':
+                string_VDW=""
+                reqm_i,reqm_j,epsilon_i,epsilon_j = pot.get_atom_par_array_VDW(par_list,lig_type,rec_type)
+                n_exp_range = np.arange(pot_VDW_n_min, pot_VDW_n_max+1)
+                m_exp_range = np.arange(pot_VDW_m_min, pot_VDW_m_max+1)
+                for n_exp in n_exp_range:
+                    for m_exp in m_exp_range:
+                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                            v_VDW_n_m = vd.vdw_potentialv(reqm_i, epsilon_i, reqm_j, epsilon_j, dist_pairs, n_exp, m_exp)
+                            string_VDW += str(",")+(str(v_VDW_n_m))
+            
+            if vdwtype == 'vina':            
+                string_VDW=""
+                reqm_i,reqm_j,epsilon_i,epsilon_j = pot.get_atom_par_array_VDW(par_list2,lig_type,rec_type)
+                n_exp_range = np.arange(pot_VDW_n_min, pot_VDW_n_max+1)
+                m_exp_range = np.arange(pot_VDW_m_min, pot_VDW_m_max+1)
+                for n_exp in n_exp_range:
+                    for m_exp in m_exp_range:
+                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                            v_VDW_n_m = vd.vdw_potentialvv(reqm_i, epsilon_i, reqm_j, epsilon_j, dist_pairs, n_exp, m_exp,ehb_i,ehb_j)
+                            string_VDW += str(",")+(str(v_VDW_n_m))
+            if vdwtype == 'smooth':            
+                string_VDW=""
+                reqm_i,reqm_j,epsilon_i,epsilon_j = pot.get_atom_par_array_VDW(par_list2,lig_type,rec_type)
+                n_exp_range = np.arange(pot_VDW_n_min, pot_VDW_n_max+1)
+                m_exp_range = np.arange(pot_VDW_m_min, pot_VDW_m_max+1)
+                for n_exp in n_exp_range:
+                    for m_exp in m_exp_range:
+                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                            for smooth in smooth_vdw_array:
+                                for cap in cap_vdw_array:
+                                    v_VDW_n_m = vd.vdw_potentialvvs(reqm_i, epsilon_i, reqm_j, epsilon_j, dist_pairs, n_exp, m_exp,ehb_i,ehb_j,smooth,cap)
+                                    string_VDW += str(",")+(str(v_VDW_n_m))
+            ################################################################
+
+            # For Electrostatic Potential (Logistic Function)
+            v_Elec_logistic=""
+            v_Elec_tanh=""
+            v_Elec_logistic_tanh=""
+            q_i2d,q_j2d= pot.get_atom_par_array_elec(lig_charge,rec_charge)
+            #Looping through a_array, e0_array, k_array, and l_array
+            for a in a_array:
+                for e0 in e0_array:
+                    for k in k_array:
+                        for l in l_array:
+                            # Calculate Potential
+                            for log_w in log_array:
+                                if log_w ==1:
+                                    tanh_w=0
+                                    v_Elec_pot = e1.elec_potentialv(dist_pairs,q_i2d,q_j2d,l,k,a,e0,log_w,tanh_w)    
+                                    v_Elec_logistic +=str(",")+str(v_Elec_pot)
+                                if log_w ==0.5:
+                                    tanh_w=0.5
+                                    v_Elec_pot = e1.elec_potentialv(dist_pairs,q_i2d,q_j2d,l,k,a,e0,log_w,tanh_w)    
+                                    v_Elec_logistic_tanh +=str(",")+str(v_Elec_pot)
+                                if log_w ==0:
+                                    tanh_w=1
+                                    v_Elec_pot = e1.elec_potentialv(dist_pairs,q_i2d,q_j2d,l,k,a,e0,log_w,tanh_w)    
+                                    v_Elec_tanh +=str(",")+str(v_Elec_pot)
+                                
+            ################################################################
+            # For desolvation potential
+            v_Desol=""
+            v_i,v_j,s_i,s_j = pot.get_atom_par_array_desolv(par_list,lig_type,rec_type)
+            # Looping through m_array_desol, n_array_desol, and s_array_desol
+            if desoltype =="vina":            
+                for m in m_array_desol:
+                    for n in n_array_desol:
+                        for sigma in s_array_desol:
+                            for cc in cc_array_desol:
+                                # Calculate potential
+                                v_Desol_pot = ds1.desol_potentialvv(q_i2d,q_j2d,v_i,v_j,s_i,s_j,dist_pairs,m,n,sigma,cc)
+                                #v_Desol_pot = ds1.desol_potentialv_charge(q_i2d,q_j2d,v_i,v_j,s_i,s_j,dist_pairs,m,n,sigma)
+                                v_Desol += str(",")+str(v_Desol_pot)
+                                #print('Desol',v_Desol)        
+                            
+            
+            # Looping through m_array_desol, n_array_desol, and s_array_desol
+            if desoltype =="walter":
+                for m in m_array_desol:
+                    for n in n_array_desol:
+                        for sigma in s_array_desol:
+                            # Calculate potential
+                            v_Desol_pot = ds1.desol_potentialv(v_i,v_j,s_i,s_j,dist_pairs,m,n,sigma)
+                            v_Desol += str(",")+str(v_Desol_pot)
+                            #print('Desol',v_Desol)      
+            ################################################################
+            # Set up line_VDW_HB
+            line_VDW_HB = string_VDW+string_HB 
+            # Set up an empty string
+            data_in = ""
+            # Looping through the data (from bind_####.csv)
+            #print(type(line))
+            for count,ele in enumerate(line):
+                if count != len(line)-1:
+                    data_in += str(line[count]) + ","
+                else:     
+                    data_in += str(line[count])
+            lines_out.append(data_in + line_VDW_HB + v_Elec_logistic + v_Elec_logistic_tanh + v_Elec_tanh + v_Desol + "\n")
+    return lines_out
 
 # Define Explorer() class
 class Explorer(object):
@@ -72,11 +242,9 @@ class Explorer(object):
         
         # Set up attributes
         self.sfs_in = sfs_in
-
         # Show message
         print("\nExploring the Scoring Function Space...")
-
-    # Define read_input() method
+# Define read_input() method
     def read_input(self):
         """Method to read input data"""
         
@@ -120,8 +288,10 @@ class Explorer(object):
             sys.exit(msg_out)
         
         # Looping through input file with commands (e.g., sfs.in)
+        self.smooth_vdw_i=0;self.smooth_vdw_f=0;self.smooth_hb_i=0;self.smooth_hb_f=0;self.n_smooth_vdw=0;self.n_smooth_hb=0;self.cap_vdw_i=0;self.cap_vdw_f=0;self.cap_hb_i=0;self.cap_hb_f=0;self.n_cap_vdw=0;self.n_cap_hb=0;self.cc_desol_i=0;self.cc_desol_f=0;self.n_cc_desol=0;self.log_i=0;self.log_f=0;self.n_log=0;
         for line in csv:
-            if line[0] == "#":
+            #print(line)
+            if (line[0] == "#") | (line[0] == ""):
                 continue
             elif line[0].strip() == "dataset_dir":
                 self.dataset_dir = str(line[1])
@@ -133,6 +303,18 @@ class Explorer(object):
                 self.binding_type = str(line[1])
             
             # For van der Waals potential
+            elif line[0].strip() == "smooth_vdw_i":
+                self.smooth_vdw_i =  handle_hash("float",line[1])                    
+            elif line[0].strip() == "smooth_vdw_f":
+                self.smooth_vdw_f =  handle_hash("float",line[1])  
+            elif line[0].strip() == "n_smooth_vdw":
+                self.n_smooth_vdw = handle_hash("int",line[1])
+            elif line[0].strip() == "cap_vdw_i":
+                self.cap_vdw_i =  handle_hash("float",line[1])                    
+            elif line[0].strip() == "cap_vdw_f":
+                self.cap_vdw_f =  handle_hash("float",line[1])  
+            elif line[0].strip() == "n_cap_vdw":
+                self.n_cap_vdw = handle_hash("int",line[1])
             elif line[0].strip() == "pot_VDW_m_min":
                 self.pot_VDW_m_min = handle_hash("int",line[1])
             elif line[0].strip() == "pot_VDW_m_max":
@@ -143,6 +325,18 @@ class Explorer(object):
                 self.pot_VDW_n_max = handle_hash("int",line[1])
             
             # For hydrogen-bond potential
+            elif line[0].strip() == "smooth_hb_i":
+                self.smooth_hb_i =  handle_hash("float",line[1])                    
+            elif line[0].strip() == "smooth_hb_f":
+                self.smooth_hb_f =  handle_hash("float",line[1])  
+            elif line[0].strip() == "n_smooth_hb":
+                self.n_smooth_hb = handle_hash("int",line[1])
+            elif line[0].strip() == "cap_hb_i":
+                self.cap_hb_i =  handle_hash("float",line[1])                    
+            elif line[0].strip() == "cap_hb_f":
+                self.cap_hb_f =  handle_hash("float",line[1])  
+            elif line[0].strip() == "n_cap_hb":
+                self.n_cap_hb = handle_hash("int",line[1])
             elif line[0].strip() == "pot_HB_m_min":
                 self.pot_HB_m_min = handle_hash("int",line[1])
             elif line[0].strip() == "pot_HB_m_max":
@@ -167,6 +361,13 @@ class Explorer(object):
             elif line[0].strip() == "n_k":
                 self.n_k = handle_hash("int",line[1])
             
+            elif line[0].strip() == "log_i":
+                self.log_i = handle_hash("float",line[1])
+            elif line[0].strip() == "log_f":
+                self.log_f = handle_hash("float",line[1])
+            elif line[0].strip() == "n_log":
+                self.n_log = handle_hash("int",line[1])
+
             elif line[0].strip() == "A_i":
                 self.A_i = handle_hash("float",line[1])
             elif line[0].strip() == "A_f":
@@ -203,6 +404,13 @@ class Explorer(object):
             elif line[0].strip() == "n_sigma_desol":
                 self.n_sigma_desol = handle_hash("int",line[1])
                 
+            elif line[0].strip() == "cc_desol_i":
+                self.cc_desol_i = handle_hash("float",line[1])
+            elif line[0].strip() == "cc_desol_f":
+                self.cc_desol_f = handle_hash("float",line[1])
+            elif line[0].strip() == "n_cc_desol":
+                self.n_cc_desol = handle_hash("int",line[1])
+                
         # Close file
         fo.close()
         
@@ -217,249 +425,95 @@ class Explorer(object):
         self.fo0 = open(self.ligands_in,"r")
         self.csv0 = csv.reader(self.fo0)
 
-    # Define write_energy() method
-    def write_energy(self):
-        """Method to write energy terms"""
-        
-        # Open scores_ff_all.csv
-        self.fo1 = open(self.scores_out,"w")
-        
-        ########################################################################
-        # For van der Waals potential
-        
-        # Set up headers
-        headers_VDW = ""
-        for n_exp in range(self.pot_VDW_n_min,self.pot_VDW_n_max+1):
-            for m_exp in range(self.pot_VDW_m_min,self.pot_VDW_m_max+1):
-                # To avoid n_exp == m_exp
-                if n_exp != m_exp:
-                    headers_VDW += "v_VDW_"+str(n_exp)+"_"+str(m_exp)+","
-        
-        ########################################################################
-        # For van der Waals potential
-        
-        # Set up headers
-        headers_HB = ""
-        for n_exp in range(self.pot_HB_n_min,self.pot_HB_n_max+1):
-            for m_exp in range(self.pot_HB_m_min,self.pot_HB_m_max+1):
-                # To avoid n_exp == m_exp
-                if n_exp != m_exp:
-                    headers_HB += "v_HB_"+str(n_exp)+"_"+str(m_exp)+","
-        
-        # Put together van der Waals and hydrogen bond potentials
-        terms_VDW_HB = headers_VDW+headers_HB 
+    def write_energy1(self,hbtype,vdwtype,desoltype):
+         # Create arrays of parameters for multicore processing
+        a_array = np.linspace(self.A_i, self.A_f, self.n_A)
+        e0_array = np.linspace(self.epsilon0_i, self.epsilon0_f, self.n_epsilon0)
+        log_array = np.linspace(self.log_i, self.log_f, self.n_log)
+        k_array = np.linspace(self.k_i, self.k_f, self.n_k)
+        l_array = np.linspace(self.lambda_i, self.lambda_f, self.n_lambda)
+        m_array_desol = np.linspace(self.m_desol_i, self.m_desol_f, self.n_m_desol)
+        n_array_desol = np.linspace(self.n_desol_i, self.n_desol_f, self.n_n_desol)
+        s_array_desol = np.linspace(self.sigma_desol_i, self.sigma_desol_f, self.n_sigma_desol)
+        cc_array_desol = np.linspace(self.cc_desol_i, self.cc_desol_f, self.n_cc_desol)
+        smooth_hb_array = np.linspace(self.smooth_hb_i, self.smooth_hb_f, self.n_smooth_hb)
+        smooth_vdw_array = np.linspace(self.smooth_vdw_i, self.smooth_vdw_f, self.n_smooth_vdw)
+        cap_hb_array = np.linspace(self.cap_hb_i, self.cap_hb_f, self.n_cap_hb)
+        cap_vdw_array = np.linspace(self.cap_vdw_i, self.cap_vdw_f, self.n_cap_vdw)
+        #Create headers
+        def get_headers_s(n_min, n_max, m_min, m_max, smooth_array, cap_array, prefix):
+            n_exp_range = np.arange(n_min, n_max + 1)
+            m_exp_range = np.arange(m_min, m_max + 1)
+            headers = [f"{prefix}_{n_exp}_{m_exp}_s{s}_c{cap}" for cap in np.round(cap_array,decimals=0) for s in np.round(smooth_array,decimals=2) for n_exp in n_exp_range for m_exp in m_exp_range if n_exp != m_exp] #if n_exp > m_exp] # uncomment and delete "]" to only explore n > m
+            return headers
+        def get_headers(n_min, n_max, m_min, m_max, prefix):
+            n_exp_range = np.arange(n_min, n_max + 1)
+            m_exp_range = np.arange(m_min, m_max + 1)
+            headers = [f"{prefix}_{n_exp}_{m_exp}" for n_exp in n_exp_range for m_exp in m_exp_range if n_exp != m_exp] #if n_exp > m_exp] # uncomment and delete "]" to only explore n > m
+            return headers
+        if vdwtype == 'smooth':
+            vdw_headers = get_headers_s(self.pot_VDW_n_min, self.pot_VDW_n_max, self.pot_VDW_m_min, self.pot_VDW_m_max,smooth_vdw_array, cap_vdw_array, 'v_VDW_v')
+        if vdwtype == 'vina':
+            vdw_headers = get_headers(self.pot_VDW_n_min, self.pot_VDW_n_max, self.pot_VDW_m_min, self.pot_VDW_m_max, 'v_VDW_v')
+        if vdwtype == 'walter':
+            vdw_headers = get_headers(self.pot_VDW_n_min, self.pot_VDW_n_max, self.pot_VDW_m_min, self.pot_VDW_m_max, 'v_VDW')
+        if hbtype == 'smooth':
+            hb_headers = get_headers_s(self.pot_HB_n_min, self.pot_HB_n_max, self.pot_HB_m_min, self.pot_HB_m_max,smooth_hb_array,cap_hb_array, 'v_HB_v')
+        if hbtype == 'vina':
+            hb_headers = get_headers(self.pot_HB_n_min, self.pot_HB_n_max, self.pot_HB_m_min, self.pot_HB_m_max, 'v_HB_v')
+        if hbtype == 'walter':
+            hb_headers = get_headers(self.pot_HB_n_min, self.pot_HB_n_max, self.pot_HB_m_min, self.pot_HB_m_max, 'v_HB')
+        e1=[]
+        e2=[]
+        e3=[]
+        for log_w in log_array:
+            if log_w == 1:
+                e1 = [f"v_Elec_Log_{a}_{e0}_{k}_{l}"           for a in a_array                for e0 in e0_array                for k in k_array                for l in l_array]
+            if log_w==0.5:
+                e2 = [f"v_Elec_Log_Tanh_{a}_{e0}_{k}_{l}"           for a in a_array                for e0 in e0_array                for k in k_array                for l in l_array]   
+            if log_w==0:
+                e3 = [f"v_Elec_Tanh_{a}_{e0}_{k}_{l}"           for a in a_array                for e0 in e0_array                for k in k_array                for l in l_array]                
+        # join the list of strings with commas
+        elec_headers = [s for lst in [e1, e2, e3] for s in lst if s]     
+        #elec_headers = [f"v_Elec_Log_{a}_{e0}_{k}_{l},v_Elec_Tanh_{a}_{e0}_{k}_{l},v_Elec_Log_Tanh_{a}_{e0}_{k}_{l}"           for a in a_array                for e0 in e0_array                for k in k_array                for l in l_array]
+        if desoltype == 'vina':
+            desol_headers = [f"v_Desol_vina_{m}_{n}_{sigma}_{cc}" for m in m_array_desol         for n in n_array_desol                 for sigma in s_array_desol for cc in cc_array_desol]
+        if desoltype == 'walter':
+            desol_headers = [f"v_Desol_{m}_{n}_{sigma}" for m in m_array_desol         for n in n_array_desol                 for sigma in s_array_desol]
+        headers = ",".join(vdw_headers + hb_headers + elec_headers + desol_headers)
 
-        ########################################################################
-        # For Electrostatic Potential
-                
-        # Set up arrays
-        a_array = np.linspace(self.A_i,self.A_f,self.n_A)
-        e0_array = np.linspace(self.epsilon0_i,self.epsilon0_f,self.n_epsilon0)
-        k_array = np.linspace(self.k_i,self.k_f,self.n_k)
-        l_array = np.linspace(self.lambda_i,self.lambda_f,self.n_lambda)
-                                
-        # Set up empty strings
-        v_Elec_logistic_terms = ""
-        v_Elec_tanh_terms = ""
-        v_Elec_logistic_tanh_terms = ""
-                                
-        # Looping through a_array, e0_array, k_array, and l_array
-        for a in a_array:
-            for e0 in e0_array:
-                for k in k_array:
-                    for l in l_array:
-                                
-                        # Set up headers for electrostatic potential
-                        v_Elec_logistic_terms += "v_Elec_Log_"+str(a)+"_"+\
-                        str(e0)+"_"+str(k)+"_"+str(l)+","
-                        v_Elec_tanh_terms += "v_Elec_Tanh_"+str(a)+"_"+\
-                        str(e0)+"_"+str(k)+"_"+str(l)+","
-                        v_Elec_logistic_tanh_terms += "v_Elec_Log_Tanh_"+\
-                        str(a)+"_"+str(e0)+"_"+str(k)+"_"+str(l)+","
-                                
-        ########################################################################
-        # For desolvation potentials
-                
-        # Set up empty string
-        v_Desol_terms = ""
-        
-        # Set up arrays
-        m_array_desol = np.linspace(self.m_desol_i,self.m_desol_f,self.n_m_desol)
-        n_array_desol = np.linspace(self.n_desol_i,self.n_desol_f,self.n_n_desol)
-        s_array_desol = np.linspace(self.sigma_desol_i,self.sigma_desol_f,
-                                    self.n_sigma_desol)
-                
-        # Looping through m_array_desol, n_array_desol, and s_array_desol
-        for m in m_array_desol:
-            for n in n_array_desol:
-                for sigma in s_array_desol:
-            
-                    # Set up headers for desolvation potential
-                    v_Desol_terms+="v_Desol_"+str(m)+"_"+str(n)+"_"+str(sigma)+","
-                                
-        ########################################################################
-        # Instantiating an object of the InterMol() class and assign it to pot.
-        # It uses AutoDock4 force field parameters.
-        pot = ad4.InterMol("misc/data/AD4.1_bound.dat")
-        
-        # Set up an empty string
-        header_in = ""
-        
-        # Looping through csv0 to get the headers
-        for line in self.csv0:
-            
-            # Looping through the header
-            for i,ele in enumerate(line):
-                header_in += line[i]+","
+        #with open(self.scores_out, "w") as fo1:
+        header_in = ",".join(next(self.csv0))
+        header_out = header_in + "," + headers
+        out = open(self.scores_out,"w")
+        out.write(header_out + "\n")
+        num_processes = cpu_count() # uses all available cores
+        csv_chunks = [[] for _ in range(num_processes)]
+        csv0_list = list(self.csv0)
+        for i, line in enumerate(csv0_list):
+            #print("id",line[0],"i",i,"index",(i // chunk_size) % num_processes)
+            #csv_chunks[(i // chunk_size) % num_processes].append(line)
+            csv_chunks[i % num_processes].append(line)
+        #define variables globally to be able to pickle and feed to process_csv_chunk
+        dataset_dir=self.dataset_dir
+        pot_VDW_n_min=self.pot_VDW_n_min
+        pot_VDW_n_max=self.pot_VDW_n_max
+        pot_VDW_m_min=self.pot_VDW_m_min
+        pot_VDW_m_max=self.pot_VDW_m_max
+        pot_HB_n_min=self.pot_HB_n_min
+        pot_HB_n_max=self.pot_HB_n_max
+        pot_HB_m_min=self.pot_HB_m_min
+        pot_HB_m_max=self.pot_HB_m_max
+        # Process each chunk in a separate process.
+        with Pool(num_processes) as pool:
+            results = pool.starmap(process_csv_chunk, [(hbtype,vdwtype,desoltype,dataset_dir,pot_VDW_n_min,pot_VDW_n_max, pot_VDW_m_min, pot_VDW_m_max,pot_HB_n_min, pot_HB_n_max, pot_HB_m_min, pot_HB_m_max, a_array, e0_array, k_array, l_array, log_array, m_array_desol, n_array_desol, s_array_desol, cc_array_desol, smooth_vdw_array, smooth_hb_array, cap_vdw_array,cap_hb_array, chunk) for chunk in csv_chunks])
 
-            break
-        
-        # Write header
-        line_out = header_in+terms_VDW_HB+v_Elec_logistic_terms
-        line_out += v_Elec_tanh_terms+v_Elec_logistic_tanh_terms
-        line_out += v_Desol_terms[:len(v_Desol_terms)-1]
-        self.fo1.write(line_out+"\n")
-                    
-        # Looping through csv0
-        for line in self.csv0:
-    
-            # Check keyword to get ligand data
-            if line[0].strip() != "PDB" and "#" not in line[0].strip():
-            
-                # Assign directory for a specific PDB to name_dir 
-                name_dir = self.dataset_dir+str(line[0].strip())+"/" 
-        
-                # Show from where it is reading
-                print(name_dir)
-        
-                # Invoking read_AD4_bound() method
-                par_list = pot.read_AD4_bound()
-        
-                # Invoking read_PDBQT() method
-                lig_list = pot.read_PDBQT(name_dir+"lig.pdbqt")
-        
-                # Invoking read_PDBQT() method
-                receptor_list = pot.read_PDBQT(name_dir+"receptor.pdbqt")
-        
-                ################################################################
-                # Calculate van der Waals potentials
-                string_VDW = ""
-                for n_exp in range(self.pot_VDW_n_min,self.pot_VDW_n_max+1):
-                    for m_exp in range(self.pot_VDW_m_min,self.pot_VDW_m_max+1):
-                        # To avoid n_exp == m_exp
-                        if n_exp != m_exp:
-                            v_VDW_n_m = pot.intermol_pot_VDW(par_list,lig_list,
-                                    receptor_list,n_exp,m_exp) 
-                            string_VDW += ","+str(v_VDW_n_m) 
-                
-                ################################################################
-                # Calculate hydrongen-bond potentials
-                string_HB = ""
-                for n_exp in range(self.pot_HB_n_min,self.pot_HB_n_max+1):
-                    for m_exp in range(self.pot_HB_m_min,self.pot_HB_m_max+1):
-                        # Avoid n_exp == m_exp
-                        if n_exp != m_exp:
-                            v_HB_n_m = pot.intermol_pot_HB(par_list,lig_list,
-                            receptor_list,n_exp,m_exp) 
-                            string_HB += ","+str(v_HB_n_m) 
-                
-                ################################################################
-                # For Electrostatic Potential (Logistic Function)
-                                
-                # Set up empty string
-                v_Elec_logistic = ""
-                
-                # Set up weights for logistic function
-                log_w = 1.0
-                tanh_w = 0.0
-                
-                # Looping through a_array, e0_array, k_array, and l_array
-                for a in a_array:
-                    for e0 in e0_array:
-                        for k in k_array:
-                            for l in l_array:
-                                
-                                # Invoking intermol_electro() method 
-                                v_Elec_pot = pot.intermol_electro(lig_list,
-                                        receptor_list,l,k,a,e0,log_w,tanh_w)
-                                v_Elec_logistic +=str(v_Elec_pot)+","
-
-                ################################################################
-                # For Electrostatic Potential (Hyperbolic Tangent Function)
-                                
-                # Set up empty string
-                v_Elec_tanh = ""
-                
-                # Set up weights for hyperbolic tangent function
-                log_w = 0.0
-                tanh_w = 1.0
-                
-                # Looping through a_array, e0_array, k_array, and l_array
-                for a in a_array:
-                    for e0 in e0_array:
-                        for k in k_array:
-                            for l in l_array:
-                                
-                                # Invoking intermol_electro() method 
-                                v_Elec_pot = pot.intermol_electro(lig_list,
-                                        receptor_list,l,k,a,e0,log_w,tanh_w)
-                                v_Elec_tanh +=str(v_Elec_pot)+","                
-                
-                ################################################################
-                # For Electrostatic Potential (Logistic + 
-                # Hyperbolic Tangent Function)
-                                
-                # Set up empty string
-                v_Elec_logistic_tanh = ""
-                
-                # Set up weights for hyperbolic tangent function
-                log_w = 0.5
-                tanh_w = 0.5
-                
-                # Looping through a_array, e0_array, k_array, and l_array
-                for a in a_array:
-                    for e0 in e0_array:
-                        for k in k_array:
-                            for l in l_array:
-                                
-                                # Invoking intermol_pot_Desol() method 
-                                v_Elec_pot = pot.intermol_electro(lig_list,
-                                receptor_list,l,k,a,e0,log_w,tanh_w)
-                                v_Elec_logistic_tanh +=str(v_Elec_pot)+"," 
-                
-                ################################################################
-                # For desolvation potential
-                
-                # Set up empty string
-                v_Desol = ""
-                                
-                # Looping through m_array_desol, n_array_desol, and s_array_desol
-                for m in m_array_desol:
-                    for n in n_array_desol:
-                        for sigma in s_array_desol:
-            
-                            # Invoking intermol_pot_Desol() method
-                            v_Desol_pot = pot.intermol_pot_Desol(par_list,lig_list,
-                            receptor_list,m,n,sigma)
-                            v_Desol += str(v_Desol_pot)+","
-                                
-                ################################################################
-                # Set up line_VDW_HB
-                line_VDW_HB = string_VDW+string_HB 
-                
-                # Set up an empty string
-                data_in = ""
-        
-                # Looping through the data (from bind_####.csv)
-                for count,ele in enumerate(line):
-                    data_in += line[count]+","
-                
-                # Write line
-                self.fo1.write(data_in[:len(data_in)-3]+\
-                line_VDW_HB+","+v_Elec_logistic+\
-                v_Elec_tanh+v_Elec_logistic_tanh+v_Desol[:len(v_Desol)-1]+"\n")
-        
-        # Close files
+        for i in range(len(csv0_list)):
+            self.fo1=out
+            chunk_index = i % num_processes
+            line_index = i // num_processes
+            self.fo1.write(results[chunk_index][line_index])
+    # Close files
         self.fo0.close()
         self.fo1.close()
         print("\nDone!")

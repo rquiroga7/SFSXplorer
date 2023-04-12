@@ -53,6 +53,9 @@
 ################################################################################
 #
 # Define class PairwisePotHB()
+import numpy as np
+
+
 class PairwisePotHB(object):
     """Class to calculate pairwise potential energy for hydrogen bonds based on 
         the assisted Model Building with Energy Refinement (AMBER) force 
@@ -61,27 +64,7 @@ class PairwisePotHB(object):
     # Define potential() method
     # It is better to follow n=12,m=10 
     def potential(self,reqm_i,epsilon_i,reqm_j,epsilon_j,r,n,m):
-        """Method to calculate pairwise potential energy based on the
-            assisted Model Building with Energy Refinement (AMBER) force 
-            field (Cornell et al., 1995).
-            
-            Inputs
-            reqm_i      : Sum of vdW radii of two like atoms (in Angstrom)
-            epsilon_i   : Well depth (in Kcal/mol)
-            reqm_j      : Sum of vdW radii of two like atoms (in Angstrom)
-            epsilon_j   : Well depth (in Kcal/mol)
-            r           : Intermolecular distance
-            m           : Attraction expoent (10)
-            n           : Repulsion expoent (12)
-            
-            Outputs
-            cn, cm      : cn and cm are constants whose values depend on the 
-                          depth of the energy well and the equilibrium 
-                          separation of the two atoms’ nuclei.
-            v           : Hydrogen-bond potential energy
-            
-            """
-        
+
         # To obtain the Rij value for H-bonding atoms
         if reqm_i > reqm_j:
             reqm = reqm_i
@@ -110,3 +93,71 @@ class PairwisePotHB(object):
         
         # Return results
         return cn,cm,v
+    
+
+def hb_potentialv(reqm_i, epsilon_i, reqm_j, epsilon_j, r, n, m):
+    # Select max Rij for each pair of atoms
+    reqm = np.maximum(reqm_i, reqm_j) # ideally should replace this with sum reqm_i and reqm_j and divide by 2
+    # Select max epsilon for each pair of atoms
+    epsilon = np.maximum(epsilon_i, epsilon_j)
+    cm = np.zeros_like(r)
+    cn = np.zeros_like(r)
+    v = np.zeros_like(r)
+    # Calculate cm and cn for all atom pairs in array
+    mask = r <= 8
+    cm[mask] = (n / (n - m)) * epsilon[mask] * (reqm[mask] ** m)
+    cn[mask] = (m / (n - m)) * epsilon[mask] * (reqm[mask] ** n)
+    v[mask] = cn[mask] / (r[mask] ** n) - cm[mask] / (r[mask] ** m)
+    # Calculate sum of v over all atom pairs
+    return np.sum(v) * 0.1209
+
+def hb_potentialvv(reqm_i, epsilon_i, reqm_j, epsilon_j, r, n, m):
+    # Use sum of HBradii and multiply epsilons
+    reqsum = np.zeros_like(reqm_i)
+    epsmult = np.zeros_like(epsilon_i)
+    mask = (r <= 8)
+    reqsum[mask] = np.maximum(reqm_i[mask], reqm_j[mask])  # Max because HD HBradii is 0
+    epsmult[mask] = -1 * epsilon_i[mask] * epsilon_j[mask] #change sign, because eps for HD is -1
+    cm = np.zeros_like(r)
+    cn = np.zeros_like(r)
+    v = np.zeros_like(r)
+    #Only calculate for dist<=8A and hbondable atom pairs (HD + acceptor)
+    mask2= epsmult > 0
+    # Calculate cm and cn for all atom pairs in array
+    cm[mask2] = (n / (n - m)) * epsmult[mask2] * (reqsum[mask2] ** m)
+    cn[mask2] = (m / (n - m)) * epsmult[mask2] * (reqsum[mask2] ** n)
+    v[mask2] = cn[mask2] / (r[mask2] ** n) - cm[mask2] / (r[mask2] ** m)
+    # Calculate sum of v over all atom pairs
+    #mask3=v<0
+    #return np.sum(v[mask3])
+    return np.sum(v) * 0.1209
+
+def hb_potentialvvs(reqm_i, epsilon_i, reqm_j, epsilon_j, r, n, m,smooth,cap):
+    #Add smoothing
+    reqsum = np.zeros_like(reqm_i)
+    epsmult = np.zeros_like(epsilon_i)
+    mask = (r <= 8)
+    reqsum[mask] = np.maximum(reqm_i[mask], reqm_j[mask])  # Max because HD HBradii is 0
+    epsmult[mask] = -1 * epsilon_i[mask] * epsilon_j[mask] #change sign, because eps for HD is -1
+    cm = np.zeros_like(r)
+    cn = np.zeros_like(r)
+    v = np.zeros_like(r)
+    #Only calculate for dist<=8A and hbondable atom pairs (HD + acceptor)
+    mask2= epsmult > 0
+    # Calculate cm and cn for all atom pairs in array
+    cm[mask2] = (n / (n - m)) * epsmult[mask2] * (reqsum[mask2] ** m)
+    cn[mask2] = (m / (n - m)) * epsmult[mask2] * (reqsum[mask2] ** n)
+    #v[mask2] = cn[mask2] / (r[mask2] ** n) - cm[mask2] / (r[mask2] ** m)
+    # Apply smoothing of 0.5, recalculate values in r
+    #smooth_r = np.where(r > reqsum + 0.5, r - 0.5, np.where(r < reqsum - 0.5, r + 0.5, r))
+    #Smooth only on repulsive side, flat bottom
+    smooth_r = np.where(r < (reqsum - smooth), r + smooth, np.where(r < reqsum, reqsum, r))
+    # Smooth attractive side too
+    smooth_r2 = np.where(r > (reqsum + smooth), r - smooth, np.where(r > reqsum, reqsum, smooth_r))
+    # Calculate v using the updated smoothed r values
+    v[mask2] = cn[mask2] / (smooth_r2[mask2] ** n) - cm[mask2] / (smooth_r2[mask2] ** m)
+    # Calculate sum of v over all atom pairs
+    #mask3=v<0
+    #return np.sum(v[mask3])
+    v = np.clip(v, a_min=None, a_max=cap)
+    return np.sum(v) * 0.1209

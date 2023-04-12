@@ -21,10 +21,16 @@ from SFSXplorer import statistical_analysis as sa
 
 # Define main()
 def main():
-
-    # Get input files from terminal
-    sfs_in = sys.argv[1]      # Input file (e.g., sfs.in)
-    mode_in = sys.argv[2]        # All for exploring the scoring function space
+    print(sys.argv)
+    if len(sys.argv) == 0:
+        print('*You failed to provide the input file (e.g., sfs.in) and run mode on the command line, using default*')
+        #sys.exit(1)  # abort because of error
+    if len(sys.argv) == 1:
+        print('*You failed to provide the run mode on the command line, using "all" as default*')
+        # Get input files from terminal
+    #sfs_in = sys.argv[2] if len(sys.argv) >= 2 else '/home/rquiroga/Downloads/sfs/datasets/SFSXplorer_Tutorial_01/sfs_02.in'# Input file (e.g., sfs.in)
+    sfs_in = sys.argv[1] if len(sys.argv) >= 2 else './sfs.in'# Input file (e.g., sfs.in)
+    mode_in = sys.argv[2] if len(sys.argv) >= 3 else 'Explore'       # All for exploring the scoring function space
                                  # and statistical analysis of results
                                  # Stats for statistical analysis only
                                  # Explore for exploring the scoring function
@@ -46,7 +52,10 @@ def main():
         space.read_data()
 
         # Invoke write_energy() method
-        space.write_energy()
+        #space.write_energy1(hbtype='x1',vdwtype='x2',desoltype='x3')
+        space.write_energy1(hbtype='smooth',vdwtype='smooth',desoltype='vina')
+        #space.write_energy1(hbtype='walter',vdwtype='walter',desoltype='walter')
+        #space.write_energy1(hbtype='vina',vdwtype='vina',desoltype='vina')
 
     # Define stats_analysis() function
     def stats_analysis():

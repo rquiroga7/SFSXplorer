@@ -62,4 +62,39 @@ class PairwisePotDesol(object):
         v = ((vol_i*sol_i) + (vol_j*sol_j))*np.exp(-r**n/(2*sigma**m))
 
         # Return result
-        return v
+        return v 
+
+
+def desol_potentialv(vol_i,vol_j,sol_i,sol_j,r,m,n,sigma):
+    """Method to calculate pairwise potential energy based on the
+    Autodock4 force field, works on 2d arrays of inputs, returns array
+    No charges, based on Autodock 4.2 documentation 
+    n and m need  to be 2 to match the AD42 scoring function"""
+
+    # Calculate v(r)
+    mask = r <= 20
+    v = np.zeros_like(r)
+    v[mask] = ((vol_i[mask]*sol_j[mask]) + (vol_j[mask]*sol_i[mask]))*np.exp(-r[mask]**n/(2*sigma**m))
+    #v[mask] = (vol_i[mask]  * sol_j[mask] + vol_j[mask] * sol_i[mask]) * np.exp(-0.5 * (r[mask] / sigma)**2)
+    #print(v)
+    # Return result
+    return np.sum(v) 
+
+def desol_potentialvv(q_i2d,q_j2d,vol_i,vol_j,sol_i,sol_j,r,m,n,sigma,use_charge_coef):
+    """Method to calculate pairwise potential energy based on the
+    Autodock4 force field, works on 2d arrays of inputs, returns array
+    Uses charges, based on Autodock Vina 1.2 AD42 scoring function code
+    n and m need  to be 2 and use_charge_coef needs to be 0.01097
+    to match the AD42 scoring function."""
+
+    # Calculate v(r)
+    mask = r <= 20
+    v = np.zeros_like(r)
+    q_j=np.zeros_like(r)
+    q_i=np.zeros_like(r)
+    q_j[mask]=abs(q_j2d)[mask]
+    q_i[mask]=abs(q_i2d)[mask]
+    v[mask] = ((vol_i[mask]*(sol_j[mask]+use_charge_coef*q_j[mask])) + (vol_j[mask]*(sol_i[mask]+use_charge_coef*q_i[mask])))*np.exp(-r[mask]**n/(2*sigma**m))
+    #print(v)
+    # Return result
+    return np.sum(v)
