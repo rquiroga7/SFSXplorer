@@ -1,0 +1,71 @@
+################################################################################
+# Dr. Walter F. de Azevedo, Jr.                                                #
+# https://azevedolab.net/                                                      #
+# February 05, 2023                                                            #
+################################################################################
+#
+# Set up general parameters for SFSXplorer
+dataset_dir,./datasets/SFSXplorer_Tutorial_01/pdbqt/
+ligands_in,./datasets/SFSXplorer_Tutorial_01/IC50.csv
+scores_out,./datasets/SFSXplorer_Tutorial_01/bind_IC50.csv
+# For van der Waals potential m = 6 (attractive)
+cap_vdw_i,100    # Initial value for capping vdw potential atom pair value. 100 for approx no cap, 0 for no repulsion
+cap_vdw_f,100    # Final value for capping vdw potential atom pair value. 100 for approx no cap, 0 for no repulsion
+n_cap_vdw,1          # Number of elements of cap component of vdw potential
+smooth_vdw_i,0.0    # Initial weight of smooth component of vdw potential. 0 for no smooth, 0.2 for similar values to AD42
+smooth_vdw_f,0.0    # Final weight of smooth component of vdw potential. 0 for no smooth, 0.2 for similar values to AD42
+n_smooth_vdw,1           # Number of elements of smooth component of vdw potential. 0 for no smooth, 0.2 for similar values to AD42
+pot_VDW_m_min,6      # Initial value of exponent m (6) (integer)
+pot_VDW_m_max,6     # Final value of exponent m (6) (integer)
+# For van der Waals potential n = 12 (repulsion)
+pot_VDW_n_min,12      # Initial value of exponent n (12) (integer)
+pot_VDW_n_max,12     # Final value of exponent n (12) (integer)
+# For hydrogen-bond potential m = 10 (attractive)
+# For hydrogen-bond potential m = 10 (attractive)
+cap_hb_i,100    # Initial value for capping HB potential atom pair value. 100 for approx no cap, 0 for no repulsion
+cap_hb_f,100    # Final value for capping HB potential atom pair value. 100 for approx no cap, 0 for no repulsion
+n_cap_hb,1           # Number of elements of cap component of HB potential
+smooth_hb_i,0.0    # Initial weight of smooth component of HB potential. 0 for no smooth, 0.2 for similar values to AD42
+smooth_hb_f,0.0    # Final weight of smooth component of HB potential. 0 for no smooth, 0.2 for similar values to AD42
+n_smooth_hb,1          # Number of elements of smooth component of HB potential. 0 for no smooth, 0.2 for similar values to AD42
+pot_HB_m_min,10       # Initial value of exponent m (10) (integer)
+pot_HB_m_max,10      # Final value of exponent m (10) (integer)
+# For hydrogen-bond potential n = 12 (repulsive)
+pot_HB_n_min,12       # Initial value of exponent n (12) (integer)
+pot_HB_n_max,12      # Final value of exponent n (12) (integer)
+# For electrostatic potential (set up parameters for arrays)
+log_i,1    # Initial weight of electrostatic log potential. For log elec, use 1, for tanh elec, use 0. To explore mix of log-tanh, use 1
+log_f,1    # Initial weight of electrostatic log potential. For log elec, use 1, for tanh elec, use 0. To explore mix of log-tanh, use 0
+n_log,1    # Number of elements of electrostatic log potential.  For log or tanh elec, use 1, To explore mix of log-tanh, use 3
+lambda_i,0.003627    # Initial float of lambda used in dielectric permittivity
+lambda_f,0.003627    # Final float of lambda used in dielectric permittivity
+n_lambda,1           # Number of elements of lambda used in dielectric permittivity
+k_i,7.7839           # Initial float of k used in dielectric permittivity
+k_f,7.7839           # Final float of k used in dielectric permittivity
+n_k,1                # Number of elements of k used in dielectric permittivity
+A_i,-8.5525          # Initial float of A used in dielectric permittivity
+A_f,-8.5525          # Final float of A used in dielectric permittivity
+n_A,1                # Number of elements of A used in dielectric permittivity
+epsilon0_i,78.4      # Initial float of epsilon0
+epsilon0_f,78.4      # Final float of epsilon0
+n_epsilon0,1         # Number of elements of epsilon0 (integer)
+# For desolvation potential (set up parameters for arrays)
+m_desol_i,2          # Initial value of exponent m (integer)
+m_desol_f,2          # Final value of exponent m (integer)
+n_m_desol,1          # Number of elements of exponent m (integer)
+n_desol_i,2          # Initial value of exponent n (integer)
+n_desol_f,2          # Final value of exponent n (integer)
+n_n_desol,1          # Number of elements of exponent n (integer)
+sigma_desol_i,3.5    # Initial float of sigma used in desolvation potential
+sigma_desol_f,3.5    # Final float of sigma used in desolvation potential
+n_sigma_desol,1      # Number of elements of sigma used in desolvation potential
+cc_desol_i,0   # Initial value of exponent m (integer) # use 0 for non-charge desolvation, 0.01097 for AD42 like potential
+cc_desol_f,0.0   # Final value of exponent m (integer)
+n_cc_desol,1         # Number of elements of exponent m (integer)
+#
+# Define parameters for statistical analysis
+# Define string header with experimental data
+exp_string,pIC50
+# Define features
+n_features_in,22
+features_in,Ligand Occupation Factor,Torsions,Q,Average Q,Ligand B-factor(A2),Receptor B-factor(A2),B-factor ratio (Ligand/Receptor),C,N,O,S,Affinity(kcal/mol),Gauss 1,Gauss 2,Repulsion,Hydrophobic,Hydrogen,Torsional,v_VDW_12_6,v_HB_12_10,v_Elec_Log_-8.5525_78.4_7.7839_0.003627,v_Desol_2.0_2.0_3.5
