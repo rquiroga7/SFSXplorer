@@ -73,8 +73,8 @@ def process_csv_chunk(hbtype,vdwtype,desoltype,dataset_dir,pot_VDW_n_min,pot_VDW
     lines_out = []
     for line in chunk:
         if line[0].strip() != "PDB" and "#" not in line[0].strip():    
-            pot = ad4.InterMol("/home/rquiroga/Downloads/sfs/misc/data/AD4.1_bound.dat")
-            pot2 = ad4.InterMol("/home/rquiroga/Downloads/sfs/misc/data/AD4.2_bound.dat")
+            pot = ad4.InterMol("./misc/data/AD4.1_bound.dat") #Hardcoded path to file, FIXME!
+            pot2 = ad4.InterMol("./misc/data/AD4.2_bound.dat") #Hardcoded path to file, FIXME!
             #for line in chunk:
             # Same code as before, but without the `self.` prefixes.
             # Assign directory for a specific PDB to name_dir
