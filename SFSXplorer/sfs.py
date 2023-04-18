@@ -102,7 +102,7 @@ def process_csv_chunk(hbtype,vdwtype,desoltype,dataset_dir,pot_VDW_n_min,pot_VDW
                 m_exp_range = np.arange(pot_HB_m_min, pot_HB_m_max+1)
                 for n_exp in n_exp_range:
                     for m_exp in m_exp_range:
-                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                       if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
                             v_HB_n_m = hb.hb_potentialv(rhb_i,ehb_i,rhb_j,ehb_j,dist_pairs,n_exp,m_exp)
                             string_HB+= str(",")+str(v_HB_n_m)
             # Calculate hydrogen-bond potentials vina1.2 style
@@ -113,7 +113,7 @@ def process_csv_chunk(hbtype,vdwtype,desoltype,dataset_dir,pot_VDW_n_min,pot_VDW
                 m_exp_range = np.arange(pot_HB_m_min, pot_HB_m_max+1)
                 for n_exp in n_exp_range:
                     for m_exp in m_exp_range:
-                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                        if n_exp ==2*m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
                             v_HB_n_m = hb.hb_potentialvv(rhb_i,ehb_i,rhb_j,ehb_j,dist_pairs,n_exp,m_exp)
                             string_HB+= str(",")+str(v_HB_n_m)   
               # Calculate hydrogen-bond potentials vina1.2 style
@@ -124,7 +124,7 @@ def process_csv_chunk(hbtype,vdwtype,desoltype,dataset_dir,pot_VDW_n_min,pot_VDW
                 m_exp_range = np.arange(pot_HB_m_min, pot_HB_m_max+1)
                 for n_exp in n_exp_range:
                     for m_exp in m_exp_range:
-                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                       if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
                             for smooth in smooth_hb_array:
                                 for cap in cap_hb_array:
                                     v_HB_n_m = hb.hb_potentialvvs(rhb_i,ehb_i,rhb_j,ehb_j,dist_pairs,n_exp,m_exp,smooth,cap)
@@ -138,7 +138,7 @@ def process_csv_chunk(hbtype,vdwtype,desoltype,dataset_dir,pot_VDW_n_min,pot_VDW
                 m_exp_range = np.arange(pot_VDW_m_min, pot_VDW_m_max+1)
                 for n_exp in n_exp_range:
                     for m_exp in m_exp_range:
-                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                        if n_exp ==2*m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
                             v_VDW_n_m = vd.vdw_potentialv(reqm_i, epsilon_i, reqm_j, epsilon_j, dist_pairs, n_exp, m_exp)
                             string_VDW += str(",")+(str(v_VDW_n_m))
             
@@ -149,7 +149,7 @@ def process_csv_chunk(hbtype,vdwtype,desoltype,dataset_dir,pot_VDW_n_min,pot_VDW
                 m_exp_range = np.arange(pot_VDW_m_min, pot_VDW_m_max+1)
                 for n_exp in n_exp_range:
                     for m_exp in m_exp_range:
-                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                        if n_exp ==2*m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
                             v_VDW_n_m = vd.vdw_potentialvv(reqm_i, epsilon_i, reqm_j, epsilon_j, dist_pairs, n_exp, m_exp,ehb_i,ehb_j)
                             string_VDW += str(",")+(str(v_VDW_n_m))
             if vdwtype == 'smooth':            
@@ -159,7 +159,7 @@ def process_csv_chunk(hbtype,vdwtype,desoltype,dataset_dir,pot_VDW_n_min,pot_VDW
                 m_exp_range = np.arange(pot_VDW_m_min, pot_VDW_m_max+1)
                 for n_exp in n_exp_range:
                     for m_exp in m_exp_range:
-                        if n_exp > m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
+                        if n_exp ==2*m_exp: #if n_exp > m_exp: #if n_exp > m_exp:
                             for smooth in smooth_vdw_array:
                                 for cap in cap_vdw_array:
                                     v_VDW_n_m = vd.vdw_potentialvvs(reqm_i, epsilon_i, reqm_j, epsilon_j, dist_pairs, n_exp, m_exp,ehb_i,ehb_j,smooth,cap)
@@ -441,28 +441,38 @@ class Explorer(object):
         cap_hb_array = np.linspace(self.cap_hb_i, self.cap_hb_f, self.n_cap_hb)
         cap_vdw_array = np.linspace(self.cap_vdw_i, self.cap_vdw_f, self.n_cap_vdw)
         #Create headers
-        def get_headers_s(n_min, n_max, m_min, m_max, smooth_array, cap_array, prefix):
+        def get_headers_svdw(n_min, n_max, m_min, m_max, smooth_array, cap_array, prefix):
             n_exp_range = np.arange(n_min, n_max + 1)
             m_exp_range = np.arange(m_min, m_max + 1)
-            headers = [f"{prefix}_{n_exp}_{m_exp}_s{s}_c{cap}" for cap in np.round(cap_array,decimals=0) for s in np.round(smooth_array,decimals=2) for n_exp in n_exp_range for m_exp in m_exp_range if n_exp != m_exp] #if n_exp > m_exp] # uncomment and delete "]" to only explore n > m
+            headers = [f"{prefix}_{n_exp}_{m_exp}_s{s}_c{cap}" for cap in np.round(cap_array,decimals=0) for s in np.round(smooth_array,decimals=2) for n_exp in n_exp_range for m_exp in m_exp_range if n_exp ==2*m_exp] #if n_exp > m_exp] # uncomment and delete "]" to only explore n > m
             return headers
-        def get_headers(n_min, n_max, m_min, m_max, prefix):
+        def get_headers_shb(n_min, n_max, m_min, m_max, smooth_array, cap_array, prefix):
             n_exp_range = np.arange(n_min, n_max + 1)
             m_exp_range = np.arange(m_min, m_max + 1)
-            headers = [f"{prefix}_{n_exp}_{m_exp}" for n_exp in n_exp_range for m_exp in m_exp_range if n_exp != m_exp] #if n_exp > m_exp] # uncomment and delete "]" to only explore n > m
+            headers = [f"{prefix}_{n_exp}_{m_exp}_s{s}_c{cap}" for cap in np.round(cap_array,decimals=0) for s in np.round(smooth_array,decimals=2) for n_exp in n_exp_range for m_exp in m_exp_range if n_exp > m_exp] #if n_exp > m_exp] # uncomment and delete "]" to only explore n > m
+            return headers
+        def get_headersvdw(n_min, n_max, m_min, m_max, prefix):
+            n_exp_range = np.arange(n_min, n_max + 1)
+            m_exp_range = np.arange(m_min, m_max + 1)
+            headers = [f"{prefix}_{n_exp}_{m_exp}" for n_exp in n_exp_range for m_exp in m_exp_range if n_exp ==2*m_exp] #if n_exp > m_exp] # uncomment and delete "]" to only explore n > m
+            return headers
+        def get_headershb(n_min, n_max, m_min, m_max, prefix):
+            n_exp_range = np.arange(n_min, n_max + 1)
+            m_exp_range = np.arange(m_min, m_max + 1)
+            headers = [f"{prefix}_{n_exp}_{m_exp}" for n_exp in n_exp_range for m_exp in m_exp_range if n_exp > m_exp] #if n_exp > m_exp] # uncomment and delete "]" to only explore n > m
             return headers
         if vdwtype == 'smooth':
-            vdw_headers = get_headers_s(self.pot_VDW_n_min, self.pot_VDW_n_max, self.pot_VDW_m_min, self.pot_VDW_m_max,smooth_vdw_array, cap_vdw_array, 'v_VDW_v')
+            vdw_headers = get_headers_svdw(self.pot_VDW_n_min, self.pot_VDW_n_max, self.pot_VDW_m_min, self.pot_VDW_m_max,smooth_vdw_array, cap_vdw_array, 'v_VDW_v')
         if vdwtype == 'vina':
-            vdw_headers = get_headers(self.pot_VDW_n_min, self.pot_VDW_n_max, self.pot_VDW_m_min, self.pot_VDW_m_max, 'v_VDW_v')
+            vdw_headers = get_headersvdw(self.pot_VDW_n_min, self.pot_VDW_n_max, self.pot_VDW_m_min, self.pot_VDW_m_max, 'v_VDW_v')
         if vdwtype == 'walter':
-            vdw_headers = get_headers(self.pot_VDW_n_min, self.pot_VDW_n_max, self.pot_VDW_m_min, self.pot_VDW_m_max, 'v_VDW')
+            vdw_headers = get_headersvdw(self.pot_VDW_n_min, self.pot_VDW_n_max, self.pot_VDW_m_min, self.pot_VDW_m_max, 'v_VDW')
         if hbtype == 'smooth':
-            hb_headers = get_headers_s(self.pot_HB_n_min, self.pot_HB_n_max, self.pot_HB_m_min, self.pot_HB_m_max,smooth_hb_array,cap_hb_array, 'v_HB_v')
+            hb_headers = get_headers_shb(self.pot_HB_n_min, self.pot_HB_n_max, self.pot_HB_m_min, self.pot_HB_m_max,smooth_hb_array,cap_hb_array, 'v_HB_v')
         if hbtype == 'vina':
-            hb_headers = get_headers(self.pot_HB_n_min, self.pot_HB_n_max, self.pot_HB_m_min, self.pot_HB_m_max, 'v_HB_v')
+            hb_headers = get_headershb(self.pot_HB_n_min, self.pot_HB_n_max, self.pot_HB_m_min, self.pot_HB_m_max, 'v_HB_v')
         if hbtype == 'walter':
-            hb_headers = get_headers(self.pot_HB_n_min, self.pot_HB_n_max, self.pot_HB_m_min, self.pot_HB_m_max, 'v_HB')
+            hb_headers = get_headershb(self.pot_HB_n_min, self.pot_HB_n_max, self.pot_HB_m_min, self.pot_HB_m_max, 'v_HB')
         e1=[]
         e2=[]
         e3=[]
